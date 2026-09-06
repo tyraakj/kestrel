@@ -1,0 +1,15 @@
+# Specs & Local Tracking
+context/specs/
+specs/
+context/progress-tracker.md
+
+# Dependencies & Build
+node_modules/
+dist/
+contracts/out/
+contracts/cache/
+
+# Environment & Secrets
+.env
+.env.*
+!.env.example
