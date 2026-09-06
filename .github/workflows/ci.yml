@@ -1,0 +1,213 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - dev
+  pull_request:
+    branches:
+      - main
+      - dev
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # 1. Branch Naming Governance
+  branch-name:
+    name: Branch Naming Check
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate branch naming convention
+        run: |
+          BRANCH="${{ github.head_ref }}"
+          if [ "$BRANCH" = "dev" ] && [ "${{ github.base_ref }}" = "main" ]; then
+            echo "✅ PR from 'dev' to 'main' is permitted."
+            exit 0
+          fi
+          PATTERN="^(feat|fix|chore|docs|refactor|ci|test|hotfix|release|dependabot)/.+"
+          if [[ "$BRANCH" =~ $PATTERN ]]; then
+            echo "✅ Branch name '$BRANCH' follows naming conventions."
+          else
+            echo "❌ Branch name '$BRANCH' does not follow naming conventions."
+            echo ""
+            echo "Branch names must follow the pattern: <type>/<description>"
+            echo ""
+            echo "Allowed types:"
+            echo "  feat/       new feature"
+            echo "  fix/        bug fix"
+            echo "  chore/      maintenance, tooling, config"
+            echo "  docs/       documentation only"
+            echo "  refactor/   code change with no feature/fix"
+            echo "  ci/         CI/CD changes"
+            echo "  test/       adding or updating tests"
+            echo "  hotfix/     urgent production fix"
+            echo "  release/    release preparation"
+            echo ""
+            echo "Examples: feat/protocol-zod-contracts, fix/ring-buffer-eviction, docs/update-specs"
+            exit 1
+          fi
+
+  # 2. Main Branch Protection Guard
+  guard-main:
+    name: Branch Targeting Guard
+    if: github.base_ref == 'main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate target branch rules
+        run: |
+          echo "✅ PR targeted to main is verified."
+
+  # 3. Mechanical Suppression Check Gate
+  suppression-check:
+    name: Code Suppression Check
+    if: github.event.pull_request.draft == false || github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22 (LTS)
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Run Mechanical Suppression Gate
+        run: node scripts/check-suppressions.mjs
+
+  # 4. Monorepo Strict Typechecking
+  typecheck:
+    name: Typecheck Monorepo
+    needs: suppression-check
+    if: github.event.pull_request.draft == false || github.event_name == 'push'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [22.x]
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: "pnpm"
+
+      - name: Install Dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run Typecheck Across All Workspaces
+        run: pnpm typecheck
+
+  # 5. Linting & Formatting Check
+  lint:
+    name: Lint & Format Check
+    if: github.event.pull_request.draft == false || github.event_name == 'push'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [22.x]
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: "pnpm"
+
+      - name: Install Dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Format Check
+        run: pnpm format:check
+
+      - name: Run ESLint
+        run: pnpm lint
+
+  # 6. Unit & Integration Testing (Vitest)
+  test:
+    name: Unit & Protocol Tests
+    needs: typecheck
+    if: github.event.pull_request.draft == false || github.event_name == 'push'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [22.x]
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: "pnpm"
+
+      - name: Install Foundry Toolchain (Anvil Engine)
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: nightly
+
+      - name: Verify Anvil Binary
+        run: anvil --version
+
+      - name: Install Dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run Vitest Suites with Coverage
+        run: pnpm test
+
+      - name: Run Evaluation Scenarios
+        run: pnpm test:evals
+
+  # 7. Production Build Verification
+  build:
+    name: Build Packages & Deployables
+    needs: [typecheck, test]
+    if: github.event.pull_request.draft == false || github.event_name == 'push'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [22.x]
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: "pnpm"
+
+      - name: Install Dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build Project
+        run: pnpm build

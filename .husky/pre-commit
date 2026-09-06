@@ -1,0 +1,11 @@
+
+echo "🦅 Kestrel Pre-Commit Verification Gate..."
+
+# 1. Mechanical Suppression Gate
+bash scripts/check-suppressions.sh
+
+# 2. Secret Leak Scanner Gate
+bash scripts/scan-secrets.sh
+
+# 3. Lint Staged Files
+pnpm exec lint-staged

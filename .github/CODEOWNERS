@@ -1,0 +1,14 @@
+# ============================================================================
+# Kestrel CODEOWNERS Governance
+# Repository Owner: @tyraakj
+# ============================================================================
+
+# Default fallback ownership for the entire repository
+* @tyraakj
+
+# Protected financial, cryptographic, and security boundaries
+# Changes to these paths strictly mandate review and approval from @tyraakj
+/src/ledger/ @tyraakj
+/src/sandbox/ @tyraakj
+/src/x402/ @tyraakj
+/.github/workflows/ @tyraakj
