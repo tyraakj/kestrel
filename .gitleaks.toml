@@ -1,0 +1,11 @@
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Global allowlist for EVM addresses and test fixtures"
+paths = [
+  '''tests/''',
+]
+regexes = [
+  '''(?i)0x[a-f0-9]{40}''',
+]
