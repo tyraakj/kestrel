@@ -22,6 +22,8 @@ export interface BuildAtomicSwapBatchParams {
   tokenOut: Address;
   amountIn: bigint;
   minAmountOut: bigint;
+  /** Pre-swap tokenOut balance of the smart account. assertMinBalance threshold = preSwapBalance + minAmountOut. */
+  preSwapBalance: bigint;
   ammRouter: Address;
   swapCalldata: Hex;
   smartAccountAddress: Address;
@@ -60,10 +62,15 @@ export function buildAtomicSwapBatch({
   tokenOut,
   amountIn,
   minAmountOut,
+  preSwapBalance,
   ammRouter,
   swapCalldata,
   smartAccountAddress,
 }: BuildAtomicSwapBatchParams): Call[] {
+  // The invariant threshold is (pre-swap balance + minAmountOut): this validates
+  // the trade *delta* rather than just a floor, preventing a pre-existing balance
+  // from satisfying the check even when the swap produced nothing.
+  const minBalanceThreshold = preSwapBalance + minAmountOut;
   // 1. Approve exact amount
   const approveCall: Call = {
     target: tokenIn,
@@ -93,14 +100,14 @@ export function buildAtomicSwapBatch({
     }),
   };
 
-  // 4. Assert minimum received balance (on-chain circuit breaker)
+  // 4. Assert minimum received balance (on-chain circuit breaker — checks delta)
   const assertBalanceCall: Call = {
     target: smartAccountAddress,
     value: 0n,
     data: encodeFunctionData({
       abi: kestrelSmartAccountAbi,
       functionName: "assertMinBalance",
-      args: [tokenOut, minAmountOut],
+      args: [tokenOut, minBalanceThreshold],
     }),
   };
 

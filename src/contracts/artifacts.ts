@@ -14,7 +14,6 @@ export const kestrelSmartAccountAbi = parseAbi([
   "error NotAuthorized()",
   "error CallFailed(uint256 index, bytes returnData)",
   "error InvariantBreached(address token, uint256 minExpectedBalance, uint256 actualBalance)",
-  "error InvalidSignature()",
   "error ZeroAddress()",
 ]);
 
@@ -50,6 +49,5 @@ export const ERROR_SELECTORS = {
   CALL_FAILED: toFunctionSelector("CallFailed(uint256,bytes)"),
   INVARIANT_BREACHED: toFunctionSelector("InvariantBreached(address,uint256,uint256)"),
   NOT_AUTHORIZED: toFunctionSelector("NotAuthorized()"),
-  INVALID_SIGNATURE: toFunctionSelector("InvalidSignature()"),
   ZERO_ADDRESS: toFunctionSelector("ZeroAddress()"),
 } as const;

@@ -27,7 +27,6 @@ describe("Smart Contract Artifacts & ABIs", () => {
     expect(ERROR_SELECTORS.CALL_FAILED).toMatch(/^0x[0-9a-f]{8}$/);
     expect(ERROR_SELECTORS.INVARIANT_BREACHED).toMatch(/^0x[0-9a-f]{8}$/);
     expect(ERROR_SELECTORS.NOT_AUTHORIZED).toMatch(/^0x[0-9a-f]{8}$/);
-    expect(ERROR_SELECTORS.INVALID_SIGNATURE).toMatch(/^0x[0-9a-f]{8}$/);
     expect(ERROR_SELECTORS.ZERO_ADDRESS).toMatch(/^0x[0-9a-f]{8}$/);
   });
 });
@@ -42,6 +41,7 @@ describe("UserOp Builder & Atomic Swap Batch", () => {
   it("builds atomic 4-call swap batch with zero lingering allowance and circuit breaker", () => {
     const amountIn = 1_000_000n; // 1 USDC
     const minAmountOut = 300_000_000_000_000n; // 0.0003 ETH
+    const preSwapBalance = 50_000_000_000_000n; // pre-existing 0.00005 ETH balance
     const dummySwapCalldata: Hex = "0x12345678";
 
     const calls = buildAtomicSwapBatch({
@@ -49,6 +49,7 @@ describe("UserOp Builder & Atomic Swap Batch", () => {
       tokenOut: dummyTokenOut,
       amountIn,
       minAmountOut,
+      preSwapBalance,
       ammRouter: dummyRouter,
       swapCalldata: dummySwapCalldata,
       smartAccountAddress: dummyAccount,
@@ -83,7 +84,7 @@ describe("UserOp Builder & Atomic Swap Batch", () => {
     expect(decodedRevoke.args[0]).toBe(dummyRouter);
     expect(decodedRevoke.args[1]).toBe(0n);
 
-    // Call 4: assertMinBalance(tokenOut, minAmountOut) -> On-chain circuit breaker!
+    // Call 4: assertMinBalance(tokenOut, preSwapBalance + minAmountOut) -> On-chain delta check!
     expect(calls[3].target).toBe(dummyAccount);
     expect(calls[3].value).toBe(0n);
     const decodedAssert = decodeFunctionData({
@@ -92,7 +93,7 @@ describe("UserOp Builder & Atomic Swap Batch", () => {
     });
     expect(decodedAssert.functionName).toBe("assertMinBalance");
     expect(decodedAssert.args[0]).toBe(dummyTokenOut);
-    expect(decodedAssert.args[1]).toBe(minAmountOut);
+    expect(decodedAssert.args[1]).toBe(preSwapBalance + minAmountOut);
   });
 
   it("encodes executeBatch calldata correctly", () => {
