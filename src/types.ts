@@ -12,10 +12,18 @@ export const bigIntReviver = (_key: string, value: unknown): unknown => {
   if (
     value !== null &&
     typeof value === "object" &&
-    "__bigint" in value &&
-    typeof (value as { __bigint: unknown }).__bigint === "string"
+    !Array.isArray(value) &&
+    Object.keys(value).length === 1 &&
+    "__bigint" in value
   ) {
-    return BigInt((value as { __bigint: string }).__bigint);
+    const raw = (value as { __bigint: unknown }).__bigint;
+    if (typeof raw === "string" && /^-?\d+$/.test(raw)) {
+      try {
+        return BigInt(raw);
+      } catch {
+        return value;
+      }
+    }
   }
   return value;
 };
@@ -204,7 +212,7 @@ export const x402ChallengeSchema = z.object({
   facilitatorUrl: z.string(),
   challengeNonce: challengeNonceSchema,
   network: z.enum(["base", "base-sepolia"]).optional(),
-  tokenAddress: z.string().optional(),
+  tokenAddress: tokenAddressSchema.optional(),
 });
 export type X402Challenge = z.infer<typeof x402ChallengeSchema>;
 

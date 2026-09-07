@@ -3,6 +3,7 @@ import {
   jsonStringifyWithBigInt,
   jsonParseWithBigInt,
   bigIntReplacer,
+  bigIntReviver,
   toPoolAddress,
   toTokenAddress,
   toExecutionId,
@@ -11,6 +12,7 @@ import {
   tokenAddressSchema,
   executionIdSchema,
   theGraphPoolSchema,
+  x402ChallengeSchema,
   x402PaymentReceiptSchema,
   simulationResultSchema,
   selfHealingAttemptSchema,
@@ -51,6 +53,16 @@ describe("Native BigInt Serialization Helpers", () => {
   it("bigIntReplacer converts bigints to strings", () => {
     expect(bigIntReplacer("amount", 123456n)).toBe("123456");
     expect(bigIntReplacer("string", "test")).toBe("test");
+  });
+
+  it("bigIntReviver safely handles non-integer strings and multi-key objects", () => {
+    expect(bigIntReviver("key", { __bigint: "not-an-int" })).toEqual({ __bigint: "not-an-int" });
+    expect(bigIntReviver("key", { __bigint: "123", extra: "field" })).toEqual({
+      __bigint: "123",
+      extra: "field",
+    });
+    expect(bigIntReviver("key", { __bigint: "123" })).toBe(123n);
+    expect(bigIntReviver("key", { other: "data" })).toEqual({ other: "data" });
   });
 });
 
@@ -207,6 +219,28 @@ describe("Domain Schemas & Discriminated Unions", () => {
     expect(parsedLive.mode).toBe("live_broadcast");
   });
 
+  it("validates x402ChallengeSchema with strict tokenAddress enforcement", () => {
+    const validChallenge = {
+      resourceUri: "https://gateway.thegraph.com/api/query",
+      requiredAmount: "0.004",
+      recipientAddress: "0xd8da6bf26964af9d7eed9e03e53415d37aa96045",
+      facilitatorUrl: "https://x402.org/pay",
+      challengeNonce: "nonce_123",
+      network: "base" as const,
+      tokenAddress: "0x0000000000000000000000000000000000000001",
+    };
+    const parsed = x402ChallengeSchema.parse(validChallenge);
+    expect(parsed.tokenAddress).toBe("0x0000000000000000000000000000000000000001");
+
+    const invalidChallenge = {
+      ...validChallenge,
+      tokenAddress: "malformed-not-an-address",
+    };
+    expect(() => x402ChallengeSchema.parse(invalidChallenge)).toThrow(
+      /Must be a valid Ethereum address/
+    );
+  });
+
   it("validates SimulationResult discriminated union (success vs reverted)", () => {
     const successResult = {
       status: "success" as const,
@@ -255,7 +289,7 @@ describe("Domain Schemas & Discriminated Unions", () => {
     const approvalAttempt = {
       type: "approval_injection" as const,
       executionId: "corr_1234",
-      token: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+      token: "0x0000000000000000000000000000000000000001",
       spender: "0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45",
       neededAllowance: 1000000000n,
       batchCalldata: "0x095ea7b3",
