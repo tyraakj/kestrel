@@ -504,8 +504,8 @@ export type BroadcastResult = z.infer<typeof broadcastResultSchema>;
 // 10. ERC-4337 Smart Account & On-Chain Invariant Schemas
 // ============================================================================
 
-export const hexSchema = z.string().refine((val): val is Hex => /^0x[0-9a-fA-F]*$/.test(val), {
-  message: "Must be a valid hex string starting with 0x",
+export const hexSchema = z.string().refine((val): val is Hex => /^0x([0-9a-fA-F]{2})*$/.test(val), {
+  message: "Must be a valid even-length hex string starting with 0x (whole bytes only)",
 });
 
 export const hex32Schema = z.string().refine((val): val is Hex => /^0x[0-9a-fA-F]{64}$/.test(val), {

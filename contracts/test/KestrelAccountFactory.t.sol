@@ -22,7 +22,7 @@ contract KestrelAccountFactoryTest is Test {
 
         assertEq(address(deployed), predicted);
         assertEq(deployed.owner(), OWNER);
-        assertEq(address(deployed.entryPoint()), address(entryPoint));
+        assertEq(address(deployed.entryPoint()), ENTRY_POINT);
     }
 
     function test_CreateAccount_Idempotent() public {

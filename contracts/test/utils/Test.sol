@@ -7,6 +7,7 @@ interface Vm {
     function stopPrank() external;
     function deal(address who, uint256 newBalance) external;
     function assume(bool) external pure;
+    function expectRevert() external;
     function expectRevert(bytes4) external;
     function expectRevert(bytes calldata) external;
     function sign(uint256 privateKey, bytes32 digest) external pure returns (uint8 v, bytes32 r, bytes32 s);

@@ -127,6 +127,14 @@ contract KestrelSmartAccount is IAccount {
             if (!success) {
                 revert CallFailed(i, returnData);
             }
+            // SafeERC20 pattern: a call may succeed at the EVM level but signal failure
+            // by returning `false` (e.g. non-reverting USDT-style tokens). Treat as failure.
+            if (returnData.length == 32) {
+                bool ok = abi.decode(returnData, (bool));
+                if (!ok) {
+                    revert CallFailed(i, returnData);
+                }
+            }
             results[i] = returnData;
         }
     }
