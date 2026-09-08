@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { getAddress, isAddress } from "viem";
+import { getAddress, isAddress, type Hex } from "viem";
 
 // ============================================================================
 // 1. Native BigInt Serialization Helpers
@@ -504,23 +504,31 @@ export type BroadcastResult = z.infer<typeof broadcastResultSchema>;
 // 10. ERC-4337 Smart Account & On-Chain Invariant Schemas
 // ============================================================================
 
+export const hexSchema = z.string().refine((val): val is Hex => /^0x([0-9a-fA-F]{2})*$/.test(val), {
+  message: "Must be a valid even-length hex string starting with 0x (whole bytes only)",
+});
+
+export const hex32Schema = z.string().refine((val): val is Hex => /^0x[0-9a-fA-F]{64}$/.test(val), {
+  message: "Must be a valid 32-byte hex string starting with 0x",
+});
+
 export const callStructSchema = z.object({
   target: ethereumAddressSchema,
   value: z.bigint(),
-  data: z.string().regex(/^0x[0-9a-fA-F]*$/),
+  data: hexSchema,
 });
 export type CallStruct = z.infer<typeof callStructSchema>;
 
 export const packedUserOperationSchema = z.object({
   sender: ethereumAddressSchema,
   nonce: z.bigint(),
-  initCode: z.string().regex(/^0x[0-9a-fA-F]*$/),
-  callData: z.string().regex(/^0x[0-9a-fA-F]*$/),
-  accountGasLimits: z.string().regex(/^0x[0-9a-fA-F]{64}$/),
+  initCode: hexSchema,
+  callData: hexSchema,
+  accountGasLimits: hex32Schema,
   preVerificationGas: z.bigint(),
-  gasFees: z.string().regex(/^0x[0-9a-fA-F]{64}$/),
-  paymasterAndData: z.string().regex(/^0x[0-9a-fA-F]*$/),
-  signature: z.string().regex(/^0x[0-9a-fA-F]*$/),
+  gasFees: hex32Schema,
+  paymasterAndData: hexSchema,
+  signature: hexSchema,
 });
 export type PackedUserOperation = z.infer<typeof packedUserOperationSchema>;
 
