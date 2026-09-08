@@ -11,6 +11,7 @@ export const kestrelSmartAccountAbi = parseAbi([
   "function executeBatch((address target, uint256 value, bytes data)[] calls) payable returns (bytes[] results)",
   "function execute(address target, uint256 value, bytes data) payable returns (bytes result)",
   "function assertMinBalance(address token, uint256 minExpectedBalance) view",
+  "function recoverSigner(bytes32 hash, bytes signature) pure returns (address)",
   "error NotAuthorized()",
   "error CallFailed(uint256 index, bytes returnData)",
   "error InvariantBreached(address token, uint256 minExpectedBalance, uint256 actualBalance)",

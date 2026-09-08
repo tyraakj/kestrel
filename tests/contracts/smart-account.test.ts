@@ -29,6 +29,13 @@ describe("Smart Contract Artifacts & ABIs", () => {
     expect(ERROR_SELECTORS.NOT_AUTHORIZED).toMatch(/^0x[0-9a-f]{8}$/);
     expect(ERROR_SELECTORS.ZERO_ADDRESS).toMatch(/^0x[0-9a-f]{8}$/);
   });
+
+  it("includes recoverSigner in kestrelSmartAccountAbi", () => {
+    const hasRecoverSigner = kestrelSmartAccountAbi.some(
+      (item) => item.type === "function" && item.name === "recoverSigner"
+    );
+    expect(hasRecoverSigner).toBe(true);
+  });
 });
 
 describe("UserOp Builder & Atomic Swap Batch", () => {
@@ -38,7 +45,7 @@ describe("UserOp Builder & Atomic Swap Batch", () => {
   const dummyAccount: Address = "0x0000000000000000000000000000000000000004";
   const dummyEntryPoint: Address = "0x0000000071727De22E5E9d8BAf0edAc6f37da032";
 
-  it("builds atomic 4-call swap batch with zero lingering allowance and circuit breaker", () => {
+  it("builds atomic 5-call swap batch with zero lingering allowance and circuit breaker", () => {
     const amountIn = 1_000_000n; // 1 USDC
     const minAmountOut = 300_000_000_000_000n; // 0.0003 ETH
     const preSwapBalance = 50_000_000_000_000n; // pre-existing 0.00005 ETH balance
@@ -55,41 +62,52 @@ describe("UserOp Builder & Atomic Swap Batch", () => {
       smartAccountAddress: dummyAccount,
     });
 
-    expect(calls.length).toBe(4);
+    expect(calls.length).toBe(5);
 
-    // Call 1: approve(router, amountIn)
+    // Call 1: approve(router, 0n) -> Pre-reset for USDT non-zero allowance safety
     expect(calls[0].target).toBe(dummyTokenIn);
     expect(calls[0].value).toBe(0n);
-    const decodedApprove = decodeFunctionData({
+    const decodedPreReset = decodeFunctionData({
       abi: erc20Abi,
       data: calls[0].data,
+    });
+    expect(decodedPreReset.functionName).toBe("approve");
+    expect(decodedPreReset.args[0]).toBe(dummyRouter);
+    expect(decodedPreReset.args[1]).toBe(0n);
+
+    // Call 2: approve(router, amountIn) -> Approve trade amount
+    expect(calls[1].target).toBe(dummyTokenIn);
+    expect(calls[1].value).toBe(0n);
+    const decodedApprove = decodeFunctionData({
+      abi: erc20Abi,
+      data: calls[1].data,
     });
     expect(decodedApprove.functionName).toBe("approve");
     expect(decodedApprove.args[0]).toBe(dummyRouter);
     expect(decodedApprove.args[1]).toBe(amountIn);
 
-    // Call 2: router swap
-    expect(calls[1].target).toBe(dummyRouter);
-    expect(calls[1].value).toBe(0n);
-    expect(calls[1].data).toBe(dummySwapCalldata);
-
-    // Call 3: approve(router, 0n) -> Zero lingering allowance guarantee!
-    expect(calls[2].target).toBe(dummyTokenIn);
+    // Call 3: router swap
+    expect(calls[2].target).toBe(dummyRouter);
     expect(calls[2].value).toBe(0n);
+    expect(calls[2].data).toBe(dummySwapCalldata);
+
+    // Call 4: approve(router, 0n) -> Zero lingering allowance guarantee!
+    expect(calls[3].target).toBe(dummyTokenIn);
+    expect(calls[3].value).toBe(0n);
     const decodedRevoke = decodeFunctionData({
       abi: erc20Abi,
-      data: calls[2].data,
+      data: calls[3].data,
     });
     expect(decodedRevoke.functionName).toBe("approve");
     expect(decodedRevoke.args[0]).toBe(dummyRouter);
     expect(decodedRevoke.args[1]).toBe(0n);
 
-    // Call 4: assertMinBalance(tokenOut, preSwapBalance + minAmountOut) -> On-chain delta check!
-    expect(calls[3].target).toBe(dummyAccount);
-    expect(calls[3].value).toBe(0n);
+    // Call 5: assertMinBalance(tokenOut, preSwapBalance + minAmountOut) -> On-chain delta check!
+    expect(calls[4].target).toBe(dummyAccount);
+    expect(calls[4].value).toBe(0n);
     const decodedAssert = decodeFunctionData({
       abi: kestrelSmartAccountAbi,
-      data: calls[3].data,
+      data: calls[4].data,
     });
     expect(decodedAssert.functionName).toBe("assertMinBalance");
     expect(decodedAssert.args[0]).toBe(dummyTokenOut);

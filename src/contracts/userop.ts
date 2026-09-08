@@ -55,7 +55,8 @@ export function packUint128Pair(high: bigint, low: bigint): Hex {
 }
 
 /**
- * @notice Constructs an atomic 4-call batch ensuring zero lingering allowance and balance invariant assertion.
+ * @notice Constructs an atomic 5-call batch ensuring USDT non-zero allowance safety,
+ *         zero lingering allowance, and on-chain balance invariant assertion.
  */
 export function buildAtomicSwapBatch({
   tokenIn,
@@ -71,7 +72,20 @@ export function buildAtomicSwapBatch({
   // the trade *delta* rather than just a floor, preventing a pre-existing balance
   // from satisfying the check even when the swap produced nothing.
   const minBalanceThreshold = preSwapBalance + minAmountOut;
-  // 1. Approve exact amount
+
+  // 1. Pre-reset allowance to 0: handles USDT-style tokens that revert if approve()
+  // is called with a non-zero amount while current allowance is non-zero.
+  const resetAllowanceCall: Call = {
+    target: tokenIn,
+    value: 0n,
+    data: encodeFunctionData({
+      abi: erc20Abi,
+      functionName: "approve",
+      args: [ammRouter, 0n],
+    }),
+  };
+
+  // 2. Approve exact trade amount
   const approveCall: Call = {
     target: tokenIn,
     value: 0n,
@@ -82,14 +96,14 @@ export function buildAtomicSwapBatch({
     }),
   };
 
-  // 2. Execute AMM swap
+  // 3. Execute AMM swap
   const swapCall: Call = {
     target: ammRouter,
     value: 0n,
     data: swapCalldata,
   };
 
-  // 3. Immediately wipe allowance to strictly 0 (zero lingering allowance guarantee)
+  // 4. Immediately wipe allowance to strictly 0 (zero lingering allowance guarantee)
   const revokeCall: Call = {
     target: tokenIn,
     value: 0n,
@@ -100,7 +114,7 @@ export function buildAtomicSwapBatch({
     }),
   };
 
-  // 4. Assert minimum received balance (on-chain circuit breaker — checks delta)
+  // 5. Assert minimum received balance (on-chain circuit breaker — checks delta)
   const assertBalanceCall: Call = {
     target: smartAccountAddress,
     value: 0n,
@@ -111,7 +125,7 @@ export function buildAtomicSwapBatch({
     }),
   };
 
-  return [approveCall, swapCall, revokeCall, assertBalanceCall];
+  return [resetAllowanceCall, approveCall, swapCall, revokeCall, assertBalanceCall];
 }
 
 /**
