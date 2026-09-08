@@ -88,7 +88,7 @@ describe("UserOp Builder & Atomic Swap Batch", () => {
       preSwapBalance,
       ammRouter: dummyRouter,
       swapCalldata: dummySwapCalldata,
-      smartAccountAddress: dummyAccount,
+      sender: dummyAccount,
     });
 
     expect(calls.length).toBe(5);

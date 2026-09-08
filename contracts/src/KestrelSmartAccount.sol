@@ -175,10 +175,13 @@ contract KestrelSmartAccount is IAccount {
     /**
      * @notice Enforces that post-execution token or native ETH balance is >= minimum expected threshold.
      * @dev Atomically reverts with InvariantBreached if sandwich attack, slippage, or deficit occurs.
+     *      Must only be called as a self-call from executeBatch — rejects any external caller to prevent
+     *      a different account's balance from satisfying the invariant.
      * @param token Address of the token (address(0) for native ETH).
      * @param minExpectedBalance Minimum acceptable balance in wei / raw token units.
      */
     function assertMinBalance(address token, uint256 minExpectedBalance) external view {
+        if (msg.sender != address(this)) revert NotAuthorized();
         if (token == address(0)) {
             uint256 actualBalance = address(this).balance;
             if (actualBalance < minExpectedBalance) {

@@ -203,9 +203,20 @@ contract KestrelSmartAccountTest is Test {
 
     // --- On-Chain Invariant Circuit Breaker Tests (Native ETH) ---
 
-    function test_AssertMinBalance_Success() public view {
+    function test_AssertMinBalance_Success() public {
+        // assertMinBalance is a self-call — must be invoked with msg.sender == address(account)
+        vm.prank(address(account));
         account.assertMinBalance(address(0), 2 ether);
+
+        vm.prank(address(account));
         account.assertMinBalance(address(0), 1 ether);
+    }
+
+    function test_AssertMinBalance_RevertsIfNotSelfCall() public {
+        // External callers must be rejected — otherwise a different account's balance
+        // could satisfy the invariant and bypass slippage protection.
+        vm.expectRevert(KestrelSmartAccount.NotAuthorized.selector);
+        account.assertMinBalance(address(0), 0);
     }
 
     function test_AssertMinBalance_RevertsOnDeficit() public {
@@ -220,6 +231,7 @@ contract KestrelSmartAccountTest is Test {
                 actual
             )
         );
+        vm.prank(address(account));
         account.assertMinBalance(address(0), excessive);
     }
 
@@ -230,6 +242,7 @@ contract KestrelSmartAccountTest is Test {
         vm.assume(balance <= 10_000 ether);
 
         vm.deal(address(account), balance);
+        vm.prank(address(account));
         account.assertMinBalance(address(0), minRequired);
     }
 
@@ -249,8 +262,10 @@ contract KestrelSmartAccountTest is Test {
                 balance
             )
         );
+        vm.prank(address(account));
         account.assertMinBalance(address(0), expected);
     }
+
 }
 
 contract MockSwapRouter {

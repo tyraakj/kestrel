@@ -26,7 +26,12 @@ export interface BuildAtomicSwapBatchParams {
   preSwapBalance?: bigint;
   ammRouter: Address;
   swapCalldata: Hex;
-  smartAccountAddress: Address;
+  /**
+   * The UserOp sender — must be the executing smart account address.
+   * assertMinBalance is called on this address as a self-call; passing any other
+   * address would check the wrong account's balance and bypass the invariant.
+   */
+  sender: Address;
 }
 
 import { type PackedUserOperation } from "../types.js";
@@ -71,7 +76,7 @@ export function buildAtomicSwapBatch({
   preSwapBalance,
   ammRouter,
   swapCalldata,
-  smartAccountAddress,
+  sender,
 }: BuildAtomicSwapBatchParams): Call[] {
   // The invariant threshold is (pre-swap balance + minAmountOut): this validates
   // the trade *delta* rather than just a floor, preventing a pre-existing balance
@@ -118,9 +123,11 @@ export function buildAtomicSwapBatch({
     }),
   };
 
-  // 5. Assert minimum received balance (on-chain circuit breaker — checks delta)
+  // 5. Assert minimum received balance (on-chain circuit breaker — checks delta).
+  // target MUST be the executing account (sender) — assertMinBalance is a self-call
+  // that reverts if msg.sender != address(this), preventing invariant bypass.
   const assertBalanceCall: Call = {
-    target: smartAccountAddress,
+    target: sender,
     value: 0n,
     data: encodeFunctionData({
       abi: kestrelSmartAccountAbi,
