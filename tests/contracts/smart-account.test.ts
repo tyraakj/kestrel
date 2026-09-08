@@ -185,6 +185,9 @@ describe("UserOp Builder & Atomic Swap Batch", () => {
   it("creates packed UserOp with defaults and generates canonical 32-byte hash", () => {
     const userOp = createPackedUserOp({
       sender: dummyAccount,
+      // Supply an explicit on-chain nonce — never omit or default to 0n.
+      // In production, fetch this from: entryPoint.read.getNonce([sender, 0n])
+      nonce: 1n,
       callData: "0x1234",
     });
 

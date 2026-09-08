@@ -33,7 +33,12 @@ import { type PackedUserOperation } from "../types.js";
 
 export interface CreateUserOpParams {
   sender: Address;
-  nonce?: bigint;
+  /**
+   * On-chain nonce from EntryPoint.getNonce(sender, key).
+   * Must be fetched from the EntryPoint before each UserOp — never hardcoded.
+   * Omitting this will cause EntryPoint to reject the operation (nonce reuse).
+   */
+  nonce: bigint;
   initCode?: Hex;
   callData: Hex;
   verificationGasLimit?: bigint;
@@ -149,7 +154,7 @@ export function createPackedUserOp(params: CreateUserOpParams): PackedUserOperat
 
   return {
     sender: params.sender,
-    nonce: params.nonce ?? 0n,
+    nonce: params.nonce,
     initCode: params.initCode ?? "0x",
     callData: params.callData,
     accountGasLimits: packUint128Pair(verificationGasLimit, callGasLimit),
