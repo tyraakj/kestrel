@@ -141,11 +141,12 @@ contract KestrelSmartAccountTest is Test {
 
     function test_ExecuteBatch_RevertsIfAnyCallFails() public {
         KestrelSmartAccount.Call[] memory calls = new KestrelSmartAccount.Call[](1);
-        // Exceeds account balance
+        // Exceeds account balance — inner call will fail, contract must revert with CallFailed(0, ...)
         calls[0] = KestrelSmartAccount.Call({target: address(0xCAFE), value: 100 ether, data: ""});
 
         vm.prank(owner);
-        vm.expectRevert();
+        // Use selector-based expectRevert to assert the exact custom error, not just any revert.
+        vm.expectRevert(abi.encodeWithSelector(KestrelSmartAccount.CallFailed.selector, uint256(0), bytes("")));
         account.executeBatch(calls);
     }
 
