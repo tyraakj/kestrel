@@ -131,6 +131,57 @@ contract KestrelSmartAccountTest is Test {
         account.executeBatch(calls);
     }
 
+    function test_ExecuteBatch_AllowsCallsReturningUint256() public {
+        MockSwapRouter router = new MockSwapRouter();
+        KestrelSmartAccount.Call[] memory calls = new KestrelSmartAccount.Call[](1);
+        calls[0] = KestrelSmartAccount.Call({
+            target: address(router),
+            value: 0,
+            data: abi.encodeWithSelector(MockSwapRouter.exactInputSingle.selector, 500)
+        });
+
+        vm.prank(owner);
+        bytes[] memory results = account.executeBatch(calls);
+        assertEq(results.length, 1);
+        uint256 returnedAmount = abi.decode(results[0], (uint256));
+        assertEq(returnedAmount, 1000);
+    }
+
+    function test_ExecuteBatch_RevertsOnERC20FalseReturn() public {
+        MockFailingERC20 token = new MockFailingERC20();
+        KestrelSmartAccount.Call[] memory calls = new KestrelSmartAccount.Call[](1);
+        calls[0] = KestrelSmartAccount.Call({
+            target: address(token),
+            value: 0,
+            data: abi.encodeWithSelector(MockFailingERC20.approve.selector, address(0xCAFE), 1000)
+        });
+
+        vm.prank(owner);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                KestrelSmartAccount.CallFailed.selector,
+                0,
+                abi.encode(false)
+            )
+        );
+        account.executeBatch(calls);
+    }
+
+    function test_Execute_RevertsOnERC20FalseReturn() public {
+        MockFailingERC20 token = new MockFailingERC20();
+        bytes memory data = abi.encodeWithSelector(MockFailingERC20.approve.selector, address(0xCAFE), 1000);
+
+        vm.prank(owner);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                KestrelSmartAccount.CallFailed.selector,
+                0,
+                abi.encode(false)
+            )
+        );
+        account.execute(address(token), 0, data);
+    }
+
     // --- On-Chain Invariant Circuit Breaker Tests (Native ETH) ---
 
     function test_AssertMinBalance_Success() public view {
@@ -180,5 +231,21 @@ contract KestrelSmartAccountTest is Test {
             )
         );
         account.assertMinBalance(address(0), expected);
+    }
+}
+
+contract MockSwapRouter {
+    function exactInputSingle(uint256 amountIn) external pure returns (uint256 amountOut) {
+        return amountIn * 2;
+    }
+}
+
+contract MockFailingERC20 {
+    function approve(address, uint256) external pure returns (bool) {
+        return false;
+    }
+
+    function transfer(address, uint256) external pure returns (bool) {
+        return false;
     }
 }

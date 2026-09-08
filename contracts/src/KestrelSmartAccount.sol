@@ -124,17 +124,7 @@ contract KestrelSmartAccount is IAccount {
             (bool success, bytes memory returnData) = calls[i].target.call{value: calls[i].value}(
                 calls[i].data
             );
-            if (!success) {
-                revert CallFailed(i, returnData);
-            }
-            // SafeERC20 pattern: a call may succeed at the EVM level but signal failure
-            // by returning `false` (e.g. non-reverting USDT-style tokens). Treat as failure.
-            if (returnData.length == 32) {
-                bool ok = abi.decode(returnData, (bool));
-                if (!ok) {
-                    revert CallFailed(i, returnData);
-                }
-            }
+            _verifyCall(i, success, calls[i].data, returnData);
             results[i] = returnData;
         }
     }
@@ -148,10 +138,36 @@ contract KestrelSmartAccount is IAccount {
         bytes calldata data
     ) external payable onlyEntryPointOrOwner returns (bytes memory result) {
         (bool success, bytes memory returnData) = target.call{value: value}(data);
-        if (!success) {
-            revert CallFailed(0, returnData);
-        }
+        _verifyCall(0, success, data, returnData);
         return returnData;
+    }
+
+    /**
+     * @dev Validates call outcome and enforces SafeERC20 semantics for standard ERC-20 calls.
+     *      Prevents non-reverting tokens that return `false` from being treated as successful,
+     *      while allowing arbitrary non-boolean return data (e.g. uint256 swap amounts) on other calls.
+     */
+    function _verifyCall(
+        uint256 index,
+        bool success,
+        bytes calldata data,
+        bytes memory returnData
+    ) internal pure {
+        if (!success) {
+            revert CallFailed(index, returnData);
+        }
+        if (data.length >= 4) {
+            bytes4 selector = bytes4(data[:4]);
+            if (
+                selector == 0x095ea7b3 || // approve(address,uint256)
+                selector == 0xa9059cbb || // transfer(address,uint256)
+                selector == 0x23b872dd    // transferFrom(address,address,uint256)
+            ) {
+                if (returnData.length == 32 && !abi.decode(returnData, (bool))) {
+                    revert CallFailed(index, returnData);
+                }
+            }
+        }
     }
 
     // --- On-Chain Invariant Circuit Breaker ---
