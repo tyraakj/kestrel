@@ -26,6 +26,24 @@ contract KestrelSmartAccountTest is Test {
         vm.deal(address(account), 2 ether);
     }
 
+    // --- Canonical ERC-4337 v0.7 UserOp Hash Helper ---
+
+    function _getUserOpHash(PackedUserOperation memory userOp, address entryPoint, uint256 chainId) internal pure returns (bytes32) {
+        bytes32 packedUserOpHash = keccak256(
+            abi.encode(
+                userOp.sender,
+                userOp.nonce,
+                keccak256(userOp.initCode),
+                keccak256(userOp.callData),
+                userOp.accountGasLimits,
+                userOp.preVerificationGas,
+                userOp.gasFees,
+                keccak256(userOp.paymasterAndData)
+            )
+        );
+        return keccak256(abi.encode(packedUserOpHash, entryPoint, chainId));
+    }
+
     // --- UserOp Validation Tests ---
 
     function test_ValidateUserOp_Success() public {
@@ -33,7 +51,7 @@ contract KestrelSmartAccountTest is Test {
         userOp.sender = address(account);
         userOp.nonce = 0;
 
-        bytes32 opHash = keccak256(abi.encode(userOp.sender, userOp.nonce, block.chainid, ENTRY_POINT));
+        bytes32 opHash = _getUserOpHash(userOp, ENTRY_POINT, block.chainid);
         bytes32 ethHash = opHash.toEthSignedMessageHash();
 
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(OWNER_KEY, ethHash);
@@ -50,7 +68,7 @@ contract KestrelSmartAccountTest is Test {
         userOp.sender = address(account);
         userOp.nonce = 0;
 
-        bytes32 opHash = keccak256(abi.encode(userOp.sender, userOp.nonce));
+        bytes32 opHash = _getUserOpHash(userOp, ENTRY_POINT, block.chainid);
         bytes32 ethHash = opHash.toEthSignedMessageHash();
 
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(OWNER_KEY, ethHash);
@@ -81,7 +99,7 @@ contract KestrelSmartAccountTest is Test {
         userOp.sender = address(account);
         userOp.nonce = 0;
 
-        bytes32 opHash = keccak256(abi.encode(userOp.sender, userOp.nonce));
+        bytes32 opHash = _getUserOpHash(userOp, ENTRY_POINT, block.chainid);
         bytes32 ethHash = opHash.toEthSignedMessageHash();
 
         // Signed by non-owner attacker key

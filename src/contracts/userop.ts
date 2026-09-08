@@ -22,8 +22,8 @@ export interface BuildAtomicSwapBatchParams {
   tokenOut: Address;
   amountIn: bigint;
   minAmountOut: bigint;
-  /** Pre-swap tokenOut balance of the smart account. assertMinBalance threshold = preSwapBalance + minAmountOut. */
-  preSwapBalance: bigint;
+  /** Pre-swap tokenOut balance of the smart account. Defaults to 0n. Threshold = preSwapBalance + minAmountOut. */
+  preSwapBalance?: bigint;
   ammRouter: Address;
   swapCalldata: Hex;
   smartAccountAddress: Address;
@@ -70,8 +70,7 @@ export function buildAtomicSwapBatch({
 }: BuildAtomicSwapBatchParams): Call[] {
   // The invariant threshold is (pre-swap balance + minAmountOut): this validates
   // the trade *delta* rather than just a floor, preventing a pre-existing balance
-  // from satisfying the check even when the swap produced nothing.
-  const minBalanceThreshold = preSwapBalance + minAmountOut;
+  const minBalanceThreshold = (preSwapBalance ?? 0n) + minAmountOut;
 
   // 1. Pre-reset allowance to 0: handles USDT-style tokens that revert if approve()
   // is called with a non-zero amount while current allowance is non-zero.
@@ -167,7 +166,7 @@ export function createPackedUserOp(params: CreateUserOpParams): PackedUserOperat
 export function getUserOpHash(
   entryPoint: Address,
   userOp: PackedUserOperation,
-  chainId: number
+  chainId: number | bigint
 ): Hex {
   const packedUserOpHash = keccak256(
     encodeAbiParameters(

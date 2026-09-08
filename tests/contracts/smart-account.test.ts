@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { decodeFunctionData, type Address, type Hex } from "viem";
+import { decodeFunctionData, slice, type Address, type Hex } from "viem";
 import {
   kestrelSmartAccountAbi,
   kestrelAccountFactoryAbi,
@@ -16,11 +16,40 @@ import {
 } from "../../src/contracts/userop.js";
 
 describe("Smart Contract Artifacts & ABIs", () => {
-  it("exports valid Viem ABIs for all smart contracts", () => {
-    expect(kestrelSmartAccountAbi.length).toBeGreaterThan(0);
-    expect(kestrelAccountFactoryAbi.length).toBeGreaterThan(0);
-    expect(entryPointAbi.length).toBeGreaterThan(0);
-    expect(erc20Abi.length).toBeGreaterThan(0);
+  it("exports valid Viem ABIs with canonical functions and errors", () => {
+    const getFunctions = (abi: readonly { type: string; name?: string }[]) =>
+      abi.filter((item) => item.type === "function").map((item) => item.name);
+
+    // KestrelSmartAccount functions
+    const smartAccountFunctions = getFunctions(kestrelSmartAccountAbi);
+    expect(smartAccountFunctions).toContain("validateUserOp");
+    expect(smartAccountFunctions).toContain("executeBatch");
+    expect(smartAccountFunctions).toContain("execute");
+    expect(smartAccountFunctions).toContain("assertMinBalance");
+    expect(smartAccountFunctions).toContain("recoverSigner");
+    expect(smartAccountFunctions).toContain("owner");
+    expect(smartAccountFunctions).toContain("entryPoint");
+
+    // KestrelAccountFactory functions
+    const factoryFunctions = getFunctions(kestrelAccountFactoryAbi);
+    expect(factoryFunctions).toContain("createAccount");
+    expect(factoryFunctions).toContain("getAddress");
+    expect(factoryFunctions).toContain("entryPoint");
+
+    // EntryPoint functions
+    const entryPointFunctions = getFunctions(entryPointAbi);
+    expect(entryPointFunctions).toContain("handleOps");
+    expect(entryPointFunctions).toContain("getUserOpHash");
+    expect(entryPointFunctions).toContain("depositTo");
+    expect(entryPointFunctions).toContain("getNonce");
+
+    // ERC20 functions
+    const erc20Functions = getFunctions(erc20Abi);
+    expect(erc20Functions).toContain("approve");
+    expect(erc20Functions).toContain("transfer");
+    expect(erc20Functions).toContain("transferFrom");
+    expect(erc20Functions).toContain("balanceOf");
+    expect(erc20Functions).toContain("allowance");
   });
 
   it("exports correct 4-byte custom error selectors", () => {
@@ -138,16 +167,22 @@ describe("UserOp Builder & Atomic Swap Batch", () => {
     }
   });
 
-  it("packUint128Pair formats two uint128 into a 32-byte hex", () => {
+  it("packUint128Pair formats two uint128 into a 32-byte hex with big-endian byte alignment", () => {
     const high = 150_000n;
     const low = 300_000n;
     const packed = packUint128Pair(high, low);
 
     expect(packed.length).toBe(66); // 0x + 64 hex chars (32 bytes)
     expect(packed.startsWith("0x")).toBe(true);
+
+    // Verify upper 16 bytes contain `high` and lower 16 bytes contain `low`
+    const highBytes = slice(packed, 0, 16);
+    const lowBytes = slice(packed, 16, 32);
+    expect(BigInt(highBytes)).toBe(high);
+    expect(BigInt(lowBytes)).toBe(low);
   });
 
-  it("creates packed UserOp with defaults and generates 32-byte hash", () => {
+  it("creates packed UserOp with defaults and generates canonical 32-byte hash", () => {
     const userOp = createPackedUserOp({
       sender: dummyAccount,
       callData: "0x1234",
@@ -158,8 +193,18 @@ describe("UserOp Builder & Atomic Swap Batch", () => {
     expect(userOp.accountGasLimits.length).toBe(66);
     expect(userOp.gasFees.length).toBe(66);
 
+    // Test with standard number chainId
     const hash = getUserOpHash(dummyEntryPoint, userOp, 8453); // Base mainnet chainId
     expect(hash.length).toBe(66);
     expect(hash.startsWith("0x")).toBe(true);
+
+    // Test with bigint chainId (produces identical hash)
+    const hashBigInt = getUserOpHash(dummyEntryPoint, userOp, 8453n);
+    expect(hashBigInt).toBe(hash);
+
+    // Test with large chain ID to verify no precision loss
+    const largeChainIdHash = getUserOpHash(dummyEntryPoint, userOp, 999_999_999_999n);
+    expect(largeChainIdHash.length).toBe(66);
+    expect(largeChainIdHash.startsWith("0x")).toBe(true);
   });
 });
